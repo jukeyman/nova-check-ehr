@@ -893,7 +893,6 @@ export class AppointmentService {
     );
     return response.data;
   }
-}
 
   /**
    * Get mock appointments for development
