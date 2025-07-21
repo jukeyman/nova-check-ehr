@@ -1,158 +1,359 @@
-# 🏥 Nova Check EHR
+# Nova Check EHR - AI-Powered Healthcare Management System
 
-**Modern Electronic Health Record System with AI-Powered Clinical Documentation**
+🏥 **A comprehensive Electronic Health Record (EHR) system with AI-powered features, built for modern healthcare providers.**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Node.js Version](https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen)](https://nodejs.org/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.3-blue)](https://www.typescriptlang.org/)
-[![React](https://img.shields.io/badge/React-18.2-blue)](https://reactjs.org/)
-[![FHIR R4](https://img.shields.io/badge/FHIR-R4-green)](https://hl7.org/fhir/R4/)
-[![HIPAA Compliant](https://img.shields.io/badge/HIPAA-Compliant-red)](https://www.hhs.gov/hipaa/)
+[![Node.js](https://img.shields.io/badge/Node.js-18+-green.svg)](https://nodejs.org/)
+[![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://python.org/)
+[![React](https://img.shields.io/badge/React-18+-61DAFB.svg)](https://reactjs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5+-3178C6.svg)](https://typescriptlang.org/)
 
-## 🌟 Overview
+## 🌟 Features
 
-Nova Check EHR is a comprehensive, modern electronic health record system designed for healthcare providers of all sizes. Built with cutting-edge technologies and AI-powered features, it streamlines clinical workflows while ensuring HIPAA compliance and interoperability.
+### 🤖 AI-Powered Capabilities
+- **AI Medical Scribe**: Voice-to-text transcription with structured medical note generation
+- **Clinical Decision Support**: AI-powered differential diagnosis assistance
+- **Smart Documentation**: Automated medical documentation with OpenAI GPT-4 integration
+- **Intelligent Chat Assistant**: Medical knowledge base with context-aware responses
 
-### ✨ Key Features
+### 👥 Multi-Portal Architecture
+- **Provider Portal**: Comprehensive clinical workflow management
+- **Patient Portal**: Secure patient access to health records and communication
+- **Admin Portal**: System administration and analytics dashboard
 
-- 🤖 **AI-Powered Clinical Documentation** - Intelligent scribe and documentation assistance
-- 📱 **Modern Responsive UI** - Built with React, Next.js, and Tailwind CSS
-- 🔒 **HIPAA Compliant** - End-to-end encryption and comprehensive audit trails
-- 🌐 **FHIR R4 Compatible** - Full interoperability with other healthcare systems
-- 📊 **Advanced Analytics** - Real-time insights and reporting
-- 💬 **Integrated Messaging** - Secure communication between providers and patients
-- 📅 **Smart Scheduling** - Intelligent appointment management
-- 💰 **Billing Integration** - Streamlined revenue cycle management
-- 🔗 **EHR Integrations** - Connect with Epic, Cerner, Allscripts, and more
-- 📱 **Telemedicine Ready** - Built-in video consultation capabilities
+### 🔗 Healthcare Integrations
+- **Athena Health API**: Complete EHR integration with patient data sync
+- **Epic Integration**: FHIR-compliant data exchange
+- **Cerner Integration**: Seamless healthcare data interoperability
+- **Allscripts Support**: Multi-vendor EHR compatibility
+
+### 🛡️ Security & Compliance
+- **HIPAA Compliant**: End-to-end encryption and audit logging
+- **Role-Based Access Control**: Granular permissions system
+- **Data Encryption**: AES-256 encryption for sensitive data
+- **Audit Trail**: Comprehensive activity logging
+
+### 📊 Advanced Features
+- **Real-time Analytics**: Healthcare metrics and reporting
+- **Telemedicine Support**: Video consultations and remote care
+- **Billing Integration**: Stripe and Square payment processing
+- **Mobile Responsive**: Cross-platform compatibility
 
 ## 🏗️ Architecture
 
-### Technology Stack
+### Frontend (React + TypeScript)
+```
+frontend/
+├── src/
+│   ├── components/          # Reusable UI components
+│   ├── pages/              # Application pages
+│   ├── hooks/              # Custom React hooks
+│   ├── services/           # API service layer
+│   ├── store/              # State management (Zustand)
+│   ├── types/              # TypeScript type definitions
+│   └── utils/              # Utility functions
+├── public/                 # Static assets
+└── package.json           # Dependencies and scripts
+```
 
-**Frontend:**
-- React 18 with TypeScript
-- Next.js 14 (App Router)
-- Tailwind CSS + shadcn/ui
-- Framer Motion for animations
-- React Query for state management
-- Socket.io for real-time features
+### Backend Services
+```
+backend/
+├── simple-chat-server.js   # Node.js chat API server
+chat-server/
+├── chat_server.py         # Python Flask chat server
+ehr-backend/
+├── ehr_server.py          # Main EHR backend server
+```
 
-**Backend:**
-- Node.js with Express.js
-- TypeScript
-- PostgreSQL with Prisma ORM
-- Redis for caching and sessions
-- Socket.io for WebSocket connections
-- Bull Queue for background jobs
-
-**Infrastructure:**
-- Docker & Docker Compose
-- NGINX reverse proxy
-- HAPI FHIR Server
-- MinIO for object storage
-- Elasticsearch for search
-- Prometheus + Grafana for monitoring
-
-**AI & ML:**
-- OpenAI GPT-4 for clinical documentation
-- Azure Cognitive Services
-- Custom NLP models for medical text processing
+### Key Technologies
+- **Frontend**: React 18, TypeScript, Tailwind CSS, Vite
+- **Backend**: Node.js, Python Flask, Express.js
+- **Database**: PostgreSQL, Redis (caching)
+- **AI/ML**: OpenAI GPT-4, Whisper API
+- **Authentication**: JWT, OAuth 2.0
+- **Deployment**: Docker, Kubernetes ready
 
 ## 🚀 Quick Start
 
 ### Prerequisites
+- Node.js 18+ and npm/yarn
+- Python 3.8+ and pip
+- PostgreSQL 12+
+- Redis (optional, for caching)
+- OpenAI API key
 
-- Node.js 18+ and npm 9+
-- Docker and Docker Compose
-- Git
-
-### Installation
-
-1. **Clone the repository:**
-   ```bash
-   git clone https://github.com/your-org/nova-check-ehr.git
-   cd nova-check-ehr
-   ```
-
-2. **Set up environment variables:**
-   ```bash
-   cp .env.example .env
-   # Edit .env with your configuration
-   ```
-
-3. **Install dependencies:**
-   ```bash
-   npm run setup
-   ```
-
-4. **Start with Docker (Recommended):**
-   ```bash
-   npm run docker:up
-   ```
-
-5. **Or start development servers locally:**
-   ```bash
-   npm run dev
-   ```
-
-6. **Run database migrations:**
-   ```bash
-   npm run db:migrate
-   npm run db:seed
-   ```
-
-### 🌐 Access Points
-
-- **Frontend Application:** http://localhost:3000
-- **Backend API:** http://localhost:3001
-- **API Documentation:** http://localhost:3001/docs
-- **FHIR Server:** http://localhost:8080/fhir
-- **MinIO Console:** http://localhost:9001
-- **Grafana Dashboard:** http://localhost:3002
-- **Kibana Logs:** http://localhost:5601
-
-## 📁 Project Structure
-
+### 1. Clone the Repository
+```bash
+git clone https://github.com/jukeyman/nova-check-ehr.git
+cd nova-check-ehr
 ```
-nova-check-ehr/
-├── frontend/                 # React/Next.js frontend application
-│   ├── src/
-│   │   ├── components/       # Reusable UI components
-│   │   ├── pages/           # Next.js pages
-│   │   ├── hooks/           # Custom React hooks
-│   │   ├── services/        # API services
-│   │   ├── utils/           # Utility functions
-│   │   └── types/           # TypeScript type definitions
-│   └── public/              # Static assets
-├── backend/                 # Node.js/Express backend API
-│   ├── src/
-│   │   ├── controllers/     # Route controllers
-│   │   ├── services/        # Business logic
-│   │   ├── models/          # Database models
-│   │   ├── middleware/      # Express middleware
-│   │   ├── routes/          # API routes
-│   │   └── utils/           # Utility functions
-│   └── scripts/             # Database and deployment scripts
-├── database/                # Database schemas and migrations
-│   ├── migrations/          # Database migration files
-│   ├── seeds/              # Seed data
-│   └── schemas/            # Database schemas
-├── infrastructure/          # Infrastructure as code
-│   ├── docker/             # Docker configurations
-│   ├── kubernetes/         # K8s manifests
-│   ├── terraform/          # Terraform configurations
-│   └── nginx/              # NGINX configurations
-├── tests/                  # Test suites
-│   ├── e2e/               # End-to-end tests
-│   ├── integration/       # Integration tests
-│   └── performance/       # Performance tests
-├── docs/                   # Documentation
-│   ├── api/               # API documentation
-│   ├── user/              # User guides
-│   └── developer/         # Developer documentation
-└── scripts/               # Utility scripts
+
+### 2. Environment Setup
+```bash
+# Copy environment template
+cp .env.example .env
+
+# Edit .env with your configuration
+nano .env
 ```
+
+### 3. Frontend Setup
+```bash
+cd frontend
+npm install
+npm run dev
+```
+Frontend will be available at `http://localhost:8081`
+
+### 4. Backend Services
+
+#### Node.js Chat Server
+```bash
+cd backend
+npm install
+node simple-chat-server.js
+```
+Chat API available at `http://localhost:3002`
+
+#### Python Chat Server
+```bash
+cd chat-server
+pip install -r requirements.txt
+python chat_server.py
+```
+Python chat API available at `http://localhost:5000`
+
+#### Main EHR Backend
+```bash
+cd ehr-backend
+pip install -r requirements.txt
+python ehr_server.py
+```
+EHR API available at `http://localhost:5001`
+
+## 🔧 Configuration
+
+### Required Environment Variables
+```bash
+# Application
+NODE_ENV=development
+PORT=3001
+FRONTEND_URL=http://localhost:8081
+
+# Database
+DATABASE_URL=postgresql://user:password@localhost:5432/nova_check_ehr
+REDIS_URL=redis://localhost:6379/0
+
+# Security
+JWT_SECRET=your-super-secret-jwt-key
+ENCRYPTION_KEY=your-32-character-encryption-key
+
+# AI Services
+OPENAI_API_KEY=your-openai-api-key
+OPENAI_MODEL=gpt-4
+
+# Athena Health Integration
+ATHENA_CLIENT_ID=your-athena-client-id
+ATHENA_CLIENT_SECRET=your-athena-client-secret
+ATHENA_PRACTICE_ID=your-practice-id
+```
+
+### Optional Integrations
+```bash
+# Epic Integration
+EPIC_CLIENT_ID=your-epic-client-id
+EPIC_CLIENT_SECRET=your-epic-client-secret
+
+# Payment Processing
+STRIPE_SECRET_KEY=sk_test_your_stripe_secret_key
+SQUARE_ACCESS_TOKEN=your-square-access-token
+
+# Communication
+TWILIO_ACCOUNT_SID=your-twilio-account-sid
+SENDGRID_API_KEY=your-sendgrid-api-key
+```
+
+## 📱 Usage
+
+### Provider Workflow
+1. **Login** to the provider portal
+2. **Search/Select** patient from the database
+3. **Create Encounter** for patient visit
+4. **Use AI Scribe** for voice-to-text documentation
+5. **Get AI Assistance** for clinical decision support
+6. **Complete** encounter with diagnosis and treatment plan
+
+### Patient Portal
+1. **Secure Login** with patient credentials
+2. **View** medical history and test results
+3. **Schedule** appointments
+4. **Communicate** with healthcare providers
+5. **Access** educational materials
+
+### AI Features
+- **Chat with Nova**: Ask medical questions and get evidence-based responses
+- **Voice Documentation**: Speak naturally and get structured medical notes
+- **Differential Diagnosis**: Input symptoms and get diagnostic suggestions
+- **Drug Interactions**: Check medication compatibility
+
+## 🔌 API Documentation
+
+### Authentication
+```bash
+# Login
+POST /api/auth/login
+{
+  "username": "provider@example.com",
+  "password": "password"
+}
+```
+
+### Patient Management
+```bash
+# Get patients
+GET /api/patients?page=1&per_page=20&search=john
+
+# Get specific patient
+GET /api/patients/123
+
+# Create encounter
+POST /api/encounters
+{
+  "patient_id": 123,
+  "encounter_type": "office_visit",
+  "chief_complaint": "Chest pain"
+}
+```
+
+### AI Services
+```bash
+# Chat with AI
+POST /api/chat
+{
+  "message": "What are the differential diagnoses for chest pain?",
+  "context": "45-year-old male with hypertension"
+}
+
+# Medical Scribe
+POST /api/scribe
+{
+  "transcription": "Patient presents with chest pain...",
+  "encounter_type": "office_visit"
+}
+```
+
+## 🧪 Testing
+
+### Frontend Tests
+```bash
+cd frontend
+npm run test
+npm run test:coverage
+```
+
+### Backend Tests
+```bash
+# Node.js tests
+cd backend
+npm test
+
+# Python tests
+cd chat-server
+python -m pytest
+
+cd ehr-backend
+python -m pytest
+```
+
+## 🚢 Deployment
+
+### Docker Deployment
+```bash
+# Build and run with Docker Compose
+docker-compose up -d
+```
+
+### Production Deployment
+```bash
+# Build frontend
+cd frontend
+npm run build
+
+# Deploy to your preferred platform
+# (AWS, GCP, Azure, DigitalOcean, etc.)
+```
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+### Development Guidelines
+- Follow TypeScript/ESLint rules for frontend
+- Use Black formatter for Python code
+- Write tests for new features
+- Update documentation
+- Ensure HIPAA compliance
+
+## 📋 Roadmap
+
+### Phase 1 (Current)
+- ✅ Core EHR functionality
+- ✅ AI chat integration
+- ✅ Provider portal
+- ✅ Athena Health integration
+
+### Phase 2 (Q2 2024)
+- 🔄 Patient portal enhancement
+- 🔄 Telemedicine features
+- 🔄 Mobile app development
+- 🔄 Advanced analytics
+
+### Phase 3 (Q3 2024)
+- 📋 FHIR R4 compliance
+- 📋 Multi-tenant architecture
+- 📋 Advanced AI features
+- 📋 Blockchain integration
+
+## 🛡️ Security
+
+### Data Protection
+- **Encryption**: All sensitive data encrypted at rest and in transit
+- **Access Control**: Role-based permissions with audit logging
+- **Compliance**: HIPAA, GDPR, and SOC 2 compliant
+- **Monitoring**: Real-time security monitoring and alerting
+
+### Vulnerability Reporting
+Please report security vulnerabilities to: security@novacheck.com
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 🙏 Acknowledgments
+
+- **OpenAI** for GPT-4 and Whisper API
+- **Athena Health** for EHR integration
+- **React Team** for the amazing frontend framework
+- **Flask Team** for the Python web framework
+- **Healthcare Community** for feedback and requirements
+
+## 📞 Support
+
+- **Documentation**: [docs.novacheck.com](https://docs.novacheck.com)
+- **Issues**: [GitHub Issues](https://github.com/jukeyman/nova-check-ehr/issues)
+- **Email**: support@novacheck.com
+- **Discord**: [Nova Check Community](https://discord.gg/novacheck)
+
+---
+
+**Built with ❤️ for healthcare providers worldwide**
+
+*Nova Check EHR - Transforming healthcare through AI-powered technology*
 
 ## 🔧 Development
 
