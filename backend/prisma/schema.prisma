@@ -1,0 +1,1228 @@
+// ============================================================================
+// NOVA CHECK EHR - PRISMA SCHEMA
+// ============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================================
+// USER MANAGEMENT & AUTHENTICATION
+// ============================================================================
+
+model User {
+  id                String    @id @default(cuid())
+  email             String    @unique
+  username          String?   @unique
+  passwordHash      String
+  firstName         String
+  lastName          String
+  middleName        String?
+  role              UserRole  @default(STAFF)
+  status            UserStatus @default(ACTIVE)
+  isEmailVerified   Boolean   @default(false)
+  emailVerifiedAt   DateTime?
+  lastLoginAt       DateTime?
+  failedLoginAttempts Int     @default(0)
+  lockedUntil       DateTime?
+  passwordResetToken String?
+  passwordResetExpires DateTime?
+  emailVerificationToken String?
+  twoFactorEnabled  Boolean   @default(false)
+  twoFactorSecret   String?
+  backupCodes       String[]
+  preferences       Json      @default("{}")
+  metadata          Json      @default("{}")
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  deletedAt         DateTime?
+
+  // Relations
+  provider          Provider?
+  staff             Staff?
+  patient           Patient?
+  sessions          Session[]
+  auditLogs         AuditLog[]
+  createdAppointments Appointment[] @relation("CreatedByUser")
+  updatedAppointments Appointment[] @relation("UpdatedByUser")
+  sentMessages      Message[] @relation("SentMessages")
+  receivedMessages  Message[] @relation("ReceivedMessages")
+  notifications     Notification[]
+  apiKeys           ApiKey[]
+
+  @@map("users")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  userId       String
+  sessionToken String   @unique
+  deviceInfo   Json?
+  ipAddress    String?
+  userAgent    String?
+  isActive     Boolean  @default(true)
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model ApiKey {
+  id          String    @id @default(cuid())
+  userId      String
+  name        String
+  keyHash     String    @unique
+  permissions String[]
+  isActive    Boolean   @default(true)
+  lastUsedAt  DateTime?
+  expiresAt   DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("api_keys")
+}
+
+// ============================================================================
+// HEALTHCARE PROVIDERS
+// ============================================================================
+
+model Provider {
+  id                String            @id @default(cuid())
+  userId            String            @unique
+  npi               String            @unique
+  deaNumber         String?
+  licenseNumber     String
+  licenseState      String
+  licenseExpiry     DateTime?
+  specialty         String
+  subSpecialty      String?
+  boardCertifications String[]
+  education         Json              @default("[]")
+  experience        Json              @default("[]")
+  languages         String[]
+  acceptingPatients Boolean           @default(true)
+  consultationFee   Decimal?
+  bio               String?
+  credentials       String[]
+  affiliations      String[]
+  awards            String[]
+  publications      String[]
+  metadata          Json              @default("{}")
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  user              User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  appointments      Appointment[]
+  encounters        Encounter[]
+  prescriptions     Prescription[]
+  orders            Order[]
+  schedules         ProviderSchedule[]
+  availabilities    ProviderAvailability[]
+
+  @@map("providers")
+}
+
+model ProviderSchedule {
+  id          String    @id @default(cuid())
+  providerId  String
+  dayOfWeek   Int       // 0 = Sunday, 1 = Monday, etc.
+  startTime   String    // HH:MM format
+  endTime     String    // HH:MM format
+  isAvailable Boolean   @default(true)
+  breakStart  String?   // HH:MM format
+  breakEnd    String?   // HH:MM format
+  location    String?
+  notes       String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  provider Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
+  @@unique([providerId, dayOfWeek])
+  @@map("provider_schedules")
+}
+
+model ProviderAvailability {
+  id          String    @id @default(cuid())
+  providerId  String
+  date        DateTime  @db.Date
+  startTime   String    // HH:MM format
+  endTime     String    // HH:MM format
+  isAvailable Boolean   @default(true)
+  reason      String?   // vacation, sick, conference, etc.
+  notes       String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  provider Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
+  @@unique([providerId, date, startTime])
+  @@map("provider_availability")
+}
+
+// ============================================================================
+// STAFF MANAGEMENT
+// ============================================================================
+
+model Staff {
+  id           String     @id @default(cuid())
+  userId       String     @unique
+  employeeId   String     @unique
+  department   String
+  position     String
+  hireDate     DateTime
+  salary       Decimal?
+  hourlyRate   Decimal?
+  workSchedule Json       @default("{}")
+  permissions  String[]
+  supervisor   String?
+  emergencyContact Json?
+  metadata     Json       @default("{}")
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("staff")
+}
+
+// ============================================================================
+// PATIENTS
+// ============================================================================
+
+model Patient {
+  id                String              @id @default(cuid())
+  userId            String?             @unique
+  mrn               String              @unique // Medical Record Number
+  firstName         String
+  lastName          String
+  middleName        String?
+  dateOfBirth       DateTime            @db.Date
+  gender            Gender
+  ssn               String?             @unique
+  phone             String?
+  email             String?
+  address           Json?
+  emergencyContact  Json?
+  insurance         Json?
+  maritalStatus     MaritalStatus?
+  occupation        String?
+  employer          String?
+  race              String?
+  ethnicity         String?
+  language          String              @default("English")
+  religion          String?
+  bloodType         BloodType?
+  allergies         String[]
+  medications       String[]
+  medicalHistory    String[]
+  familyHistory     String[]
+  socialHistory     Json?
+  preferences       Json                @default("{}")
+  metadata          Json                @default("{}")
+  isActive          Boolean             @default(true)
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  deletedAt         DateTime?
+
+  user              User?               @relation(fields: [userId], references: [id], onDelete: SetNull)
+  appointments      Appointment[]
+  encounters        Encounter[]
+  vitalSigns        VitalSigns[]
+  allergiesList     Allergy[]
+  medications       Medication[]
+  conditions        Condition[]
+  procedures        Procedure[]
+  labResults        LabResult[]
+  imagingStudies    ImagingStudy[]
+  prescriptions     Prescription[]
+  orders            Order[]
+  documents         Document[]
+  consents          Consent[]
+  careTeam          CareTeamMember[]
+  billingRecords    BillingRecord[]
+  claims            Claim[]
+  payments          Payment[]
+
+  @@map("patients")
+}
+
+// ============================================================================
+// APPOINTMENTS & SCHEDULING
+// ============================================================================
+
+model Appointment {
+  id              String            @id @default(cuid())
+  patientId       String
+  providerId      String
+  type            AppointmentType
+  status          AppointmentStatus @default(SCHEDULED)
+  priority        Priority          @default(ROUTINE)
+  scheduledAt     DateTime
+  duration        Int               // Duration in minutes
+  location        String?
+  room            String?
+  reason          String
+  notes           String?
+  instructions    String?
+  reminderSent    Boolean           @default(false)
+  confirmationSent Boolean          @default(false)
+  checkedInAt     DateTime?
+  completedAt     DateTime?
+  cancelledAt     DateTime?
+  cancellationReason String?
+  noShowAt        DateTime?
+  rescheduledFrom String?           // Previous appointment ID
+  metadata        Json              @default("{}")
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  createdBy       String
+  updatedBy       String?
+
+  patient         Patient           @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  provider        Provider          @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  createdByUser   User              @relation("CreatedByUser", fields: [createdBy], references: [id])
+  updatedByUser   User?             @relation("UpdatedByUser", fields: [updatedBy], references: [id])
+  encounter       Encounter?
+
+  @@map("appointments")
+}
+
+// ============================================================================
+// CLINICAL DATA
+// ============================================================================
+
+model Encounter {
+  id              String          @id @default(cuid())
+  appointmentId   String?         @unique
+  patientId       String
+  providerId      String
+  type            EncounterType
+  status          EncounterStatus @default(IN_PROGRESS)
+  class           EncounterClass
+  priority        Priority        @default(ROUTINE)
+  startTime       DateTime
+  endTime         DateTime?
+  location        String?
+  room            String?
+  chiefComplaint  String?
+  historyOfPresentIllness String?
+  reviewOfSystems Json?
+  physicalExam    Json?
+  assessment      String?
+  plan            String?
+  instructions    String?
+  followUpInstructions String?
+  diagnosis       String[]
+  procedures      String[]
+  medications     String[]
+  orders          String[]
+  notes           String?
+  metadata        Json            @default("{}")
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  appointment     Appointment?    @relation(fields: [appointmentId], references: [id])
+  patient         Patient         @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  provider        Provider        @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  vitalSigns      VitalSigns[]
+  conditions      Condition[]
+  procedures      Procedure[]
+  orders          Order[]
+  documents       Document[]
+
+  @@map("encounters")
+}
+
+model VitalSigns {
+  id                String    @id @default(cuid())
+  patientId         String
+  encounterId       String?
+  systolicBP        Int?
+  diastolicBP       Int?
+  heartRate         Int?
+  respiratoryRate   Int?
+  temperature       Decimal?
+  temperatureUnit   String?   @default("F")
+  oxygenSaturation  Int?
+  height            Decimal?
+  heightUnit        String?   @default("in")
+  weight            Decimal?
+  weightUnit        String?   @default("lbs")
+  bmi               Decimal?
+  painScale         Int?
+  bloodGlucose      Int?
+  notes             String?
+  recordedAt        DateTime  @default(now())
+  recordedBy        String?
+  metadata          Json      @default("{}")
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  patient           Patient   @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  encounter         Encounter? @relation(fields: [encounterId], references: [id])
+
+  @@map("vital_signs")
+}
+
+model Allergy {
+  id            String        @id @default(cuid())
+  patientId     String
+  allergen      String
+  allergenType  AllergenType
+  severity      AllergySeverity
+  reaction      String[]
+  onsetDate     DateTime?
+  notes         String?
+  isActive      Boolean       @default(true)
+  verifiedBy    String?
+  verifiedAt    DateTime?
+  metadata      Json          @default("{}")
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  patient       Patient       @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@map("allergies")
+}
+
+model Medication {
+  id              String            @id @default(cuid())
+  patientId       String
+  name            String
+  genericName     String?
+  dosage          String
+  frequency       String
+  route           MedicationRoute
+  startDate       DateTime
+  endDate         DateTime?
+  prescribedBy    String?
+  indication      String?
+  instructions    String?
+  sideEffects     String[]
+  interactions    String[]
+  isActive        Boolean           @default(true)
+  adherence       Json?
+  notes           String?
+  metadata        Json              @default("{}")
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  patient         Patient           @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@map("medications")
+}
+
+model Condition {
+  id              String            @id @default(cuid())
+  patientId       String
+  encounterId     String?
+  code            String            // ICD-10 code
+  name            String
+  category        ConditionCategory
+  severity        ConditionSeverity?
+  status          ConditionStatus   @default(ACTIVE)
+  onsetDate       DateTime?
+  resolvedDate    DateTime?
+  diagnosedBy     String?
+  notes           String?
+  metadata        Json              @default("{}")
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  patient         Patient           @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  encounter       Encounter?        @relation(fields: [encounterId], references: [id])
+
+  @@map("conditions")
+}
+
+model Procedure {
+  id              String        @id @default(cuid())
+  patientId       String
+  encounterId     String?
+  code            String        // CPT code
+  name            String
+  category        String?
+  performedAt     DateTime
+  performedBy     String?
+  location        String?
+  duration        Int?          // Duration in minutes
+  outcome         String?
+  complications   String[]
+  notes           String?
+  metadata        Json          @default("{}")
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  patient         Patient       @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  encounter       Encounter?    @relation(fields: [encounterId], references: [id])
+
+  @@map("procedures")
+}
+
+// ============================================================================
+// LABORATORY & IMAGING
+// ============================================================================
+
+model LabResult {
+  id              String        @id @default(cuid())
+  patientId       String
+  orderId         String?
+  testName        String
+  testCode        String?       // LOINC code
+  category        String?
+  value           String?
+  unit            String?
+  referenceRange  String?
+  status          LabResultStatus @default(PENDING)
+  abnormalFlag    String?       // H, L, HH, LL, etc.
+  collectedAt     DateTime?
+  receivedAt      DateTime?
+  reportedAt      DateTime?
+  performedBy     String?
+  reviewedBy      String?
+  notes           String?
+  metadata        Json          @default("{}")
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  patient         Patient       @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  order           Order?        @relation(fields: [orderId], references: [id])
+
+  @@map("lab_results")
+}
+
+model ImagingStudy {
+  id              String        @id @default(cuid())
+  patientId       String
+  orderId         String?
+  studyType       String        // X-Ray, CT, MRI, etc.
+  bodyPart        String
+  modality        String?
+  studyDate       DateTime
+  studyTime       String?
+  accessionNumber String?       @unique
+  studyInstanceUID String?      @unique
+  performedBy     String?
+  interpretedBy   String?
+  findings        String?
+  impression      String?
+  recommendations String?
+  status          ImagingStatus @default(SCHEDULED)
+  priority        Priority      @default(ROUTINE)
+  images          Json?         // Array of image URLs/paths
+  metadata        Json          @default("{}")
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  patient         Patient       @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  order           Order?        @relation(fields: [orderId], references: [id])
+
+  @@map("imaging_studies")
+}
+
+// ============================================================================
+// PRESCRIPTIONS & ORDERS
+// ============================================================================
+
+model Prescription {
+  id                String              @id @default(cuid())
+  patientId         String
+  providerId        String
+  medicationName    String
+  genericName       String?
+  strength          String
+  dosageForm        String              // tablet, capsule, liquid, etc.
+  quantity          Int
+  daysSupply        Int
+  refills           Int                 @default(0)
+  refillsRemaining  Int
+  dosage            String
+  frequency         String
+  route             MedicationRoute
+  indication        String?
+  instructions      String?
+  substitutionAllowed Boolean           @default(true)
+  status            PrescriptionStatus  @default(PENDING)
+  prescribedAt      DateTime            @default(now())
+  dispensedAt       DateTime?
+  pharmacyInfo      Json?
+  notes             String?
+  metadata          Json                @default("{}")
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+
+  patient           Patient             @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  provider          Provider            @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
+  @@map("prescriptions")
+}
+
+model Order {
+  id              String        @id @default(cuid())
+  patientId       String
+  providerId      String
+  encounterId     String?
+  type            OrderType
+  category        String?
+  description     String
+  instructions    String?
+  priority        Priority      @default(ROUTINE)
+  status          OrderStatus   @default(PENDING)
+  orderedAt       DateTime      @default(now())
+  scheduledFor    DateTime?
+  completedAt     DateTime?
+  cancelledAt     DateTime?
+  cancellationReason String?
+  results         Json?
+  notes           String?
+  metadata        Json          @default("{}")
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  patient         Patient       @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  provider        Provider      @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  encounter       Encounter?    @relation(fields: [encounterId], references: [id])
+  labResults      LabResult[]
+  imagingStudies  ImagingStudy[]
+
+  @@map("orders")
+}
+
+// ============================================================================
+// DOCUMENTS & FILES
+// ============================================================================
+
+model Document {
+  id              String        @id @default(cuid())
+  patientId       String?
+  encounterId     String?
+  name            String
+  description     String?
+  type            DocumentType
+  category        String?
+  mimeType        String
+  fileSize        Int
+  filePath        String
+  url             String?
+  version         Int           @default(1)
+  isEncrypted     Boolean       @default(false)
+  encryptionKey   String?
+  checksum        String?
+  uploadedBy      String
+  reviewedBy      String?
+  reviewedAt      DateTime?
+  isActive        Boolean       @default(true)
+  tags            String[]
+  metadata        Json          @default("{}")
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  patient         Patient?      @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  encounter       Encounter?    @relation(fields: [encounterId], references: [id])
+
+  @@map("documents")
+}
+
+// ============================================================================
+// CONSENT & AUTHORIZATION
+// ============================================================================
+
+model Consent {
+  id              String        @id @default(cuid())
+  patientId       String
+  type            ConsentType
+  purpose         String
+  scope           String[]
+  status          ConsentStatus @default(PENDING)
+  grantedAt       DateTime?
+  revokedAt       DateTime?
+  expiresAt       DateTime?
+  grantedBy       String?       // Patient or authorized representative
+  witnessedBy     String?
+  documentPath    String?
+  electronicSignature String?
+  ipAddress       String?
+  userAgent       String?
+  notes           String?
+  metadata        Json          @default("{}")
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  patient         Patient       @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@map("consents")
+}
+
+// ============================================================================
+// CARE TEAM
+// ============================================================================
+
+model CareTeamMember {
+  id              String        @id @default(cuid())
+  patientId       String
+  providerId      String?
+  name            String
+  role            String
+  specialty       String?
+  contactInfo     Json?
+  isActive        Boolean       @default(true)
+  startDate       DateTime      @default(now())
+  endDate         DateTime?
+  notes           String?
+  metadata        Json          @default("{}")
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  patient         Patient       @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@map("care_team_members")
+}
+
+// ============================================================================
+// BILLING & FINANCIAL
+// ============================================================================
+
+model BillingRecord {
+  id              String        @id @default(cuid())
+  patientId       String
+  encounterId     String?
+  invoiceNumber   String        @unique
+  serviceDate     DateTime
+  dueDate         DateTime
+  totalAmount     Decimal
+  paidAmount      Decimal       @default(0)
+  balanceAmount   Decimal
+  status          BillingStatus @default(PENDING)
+  paymentMethod   PaymentMethod?
+  insuranceClaim  String?
+  notes           String?
+  metadata        Json          @default("{}")
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  patient         Patient       @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  lineItems       BillingLineItem[]
+  payments        Payment[]
+  claims          Claim[]
+
+  @@map("billing_records")
+}
+
+model BillingLineItem {
+  id              String        @id @default(cuid())
+  billingRecordId String
+  description     String
+  code            String?       // CPT, HCPCS, etc.
+  quantity        Int           @default(1)
+  unitPrice       Decimal
+  totalPrice      Decimal
+  discountAmount  Decimal       @default(0)
+  taxAmount       Decimal       @default(0)
+  metadata        Json          @default("{}")
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  billingRecord   BillingRecord @relation(fields: [billingRecordId], references: [id], onDelete: Cascade)
+
+  @@map("billing_line_items")
+}
+
+model Payment {
+  id              String        @id @default(cuid())
+  patientId       String
+  billingRecordId String?
+  amount          Decimal
+  method          PaymentMethod
+  status          PaymentStatus @default(PENDING)
+  transactionId   String?
+  referenceNumber String?
+  processedAt     DateTime?
+  processedBy     String?
+  notes           String?
+  metadata        Json          @default("{}")
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  patient         Patient       @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  billingRecord   BillingRecord? @relation(fields: [billingRecordId], references: [id])
+
+  @@map("payments")
+}
+
+model Claim {
+  id              String        @id @default(cuid())
+  patientId       String
+  billingRecordId String?
+  claimNumber     String        @unique
+  insuranceType   InsuranceType
+  payerName       String
+  payerId         String?
+  submittedAmount Decimal
+  approvedAmount  Decimal?
+  paidAmount      Decimal       @default(0)
+  deniedAmount    Decimal       @default(0)
+  status          ClaimStatus   @default(SUBMITTED)
+  submittedAt     DateTime      @default(now())
+  processedAt     DateTime?
+  paidAt          DateTime?
+  denialReason    String?
+  notes           String?
+  metadata        Json          @default("{}")
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  patient         Patient       @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  billingRecord   BillingRecord? @relation(fields: [billingRecordId], references: [id])
+
+  @@map("claims")
+}
+
+// ============================================================================
+// MESSAGING & COMMUNICATION
+// ============================================================================
+
+model Message {
+  id              String        @id @default(cuid())
+  senderId        String
+  recipientId     String
+  subject         String?
+  content         String
+  type            MessageType   @default(GENERAL)
+  priority        Priority      @default(ROUTINE)
+  status          MessageStatus @default(SENT)
+  isRead          Boolean       @default(false)
+  readAt          DateTime?
+  parentMessageId String?       // For replies
+  attachments     Json?         // Array of file paths/URLs
+  metadata        Json          @default("{}")
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  sender          User          @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
+  recipient       User          @relation("ReceivedMessages", fields: [recipientId], references: [id], onDelete: Cascade)
+  parentMessage   Message?      @relation("MessageReplies", fields: [parentMessageId], references: [id])
+  replies         Message[]     @relation("MessageReplies")
+
+  @@map("messages")
+}
+
+model Notification {
+  id              String            @id @default(cuid())
+  userId          String
+  type            NotificationType
+  title           String
+  message         String
+  data            Json?             // Additional data for the notification
+  isRead          Boolean           @default(false)
+  readAt          DateTime?
+  actionUrl       String?
+  expiresAt       DateTime?
+  metadata        Json              @default("{}")
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  user            User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notifications")
+}
+
+// ============================================================================
+// AUDIT & COMPLIANCE
+// ============================================================================
+
+model AuditLog {
+  id              String        @id @default(cuid())
+  userId          String?
+  action          String
+  resource        String
+  resourceId      String?
+  oldValues       Json?
+  newValues       Json?
+  ipAddress       String?
+  userAgent       String?
+  sessionId       String?
+  outcome         AuditOutcome  @default(SUCCESS)
+  riskLevel       RiskLevel     @default(LOW)
+  patientId       String?       // For HIPAA tracking
+  phi             Boolean       @default(false) // Protected Health Information accessed
+  reason          String?       // Business justification
+  metadata        Json          @default("{}")
+  timestamp       DateTime      @default(now())
+
+  user            User?         @relation(fields: [userId], references: [id])
+
+  @@map("audit_logs")
+}
+
+// ============================================================================
+// SYSTEM CONFIGURATION
+// ============================================================================
+
+model SystemConfig {
+  id              String        @id @default(cuid())
+  key             String        @unique
+  value           Json
+  description     String?
+  category        String?
+  isEncrypted     Boolean       @default(false)
+  isActive        Boolean       @default(true)
+  validationRules Json?
+  metadata        Json          @default("{}")
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@map("system_config")
+}
+
+// ============================================================================
+// ENUMS
+// ============================================================================
+
+enum UserRole {
+  SUPER_ADMIN
+  ADMIN
+  PROVIDER
+  NURSE
+  STAFF
+  PATIENT
+  BILLING
+  SUPPORT
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+  PENDING
+  LOCKED
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+  UNKNOWN
+}
+
+enum MaritalStatus {
+  SINGLE
+  MARRIED
+  DIVORCED
+  WIDOWED
+  SEPARATED
+  DOMESTIC_PARTNER
+  UNKNOWN
+}
+
+enum BloodType {
+  A_POSITIVE
+  A_NEGATIVE
+  B_POSITIVE
+  B_NEGATIVE
+  AB_POSITIVE
+  AB_NEGATIVE
+  O_POSITIVE
+  O_NEGATIVE
+  UNKNOWN
+}
+
+enum AppointmentType {
+  CONSULTATION
+  FOLLOW_UP
+  PROCEDURE
+  SURGERY
+  EMERGENCY
+  TELEMEDICINE
+  VACCINATION
+  SCREENING
+  THERAPY
+  DIAGNOSTIC
+}
+
+enum AppointmentStatus {
+  SCHEDULED
+  CONFIRMED
+  CHECKED_IN
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+  RESCHEDULED
+}
+
+enum Priority {
+  LOW
+  ROUTINE
+  URGENT
+  EMERGENT
+  CRITICAL
+}
+
+enum EncounterType {
+  INPATIENT
+  OUTPATIENT
+  EMERGENCY
+  URGENT_CARE
+  TELEMEDICINE
+  HOME_VISIT
+  CONSULTATION
+  PROCEDURE
+}
+
+enum EncounterStatus {
+  PLANNED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  ENTERED_IN_ERROR
+}
+
+enum EncounterClass {
+  INPATIENT
+  OUTPATIENT
+  AMBULATORY
+  EMERGENCY
+  FIELD
+  DAYTIME
+  VIRTUAL
+}
+
+enum AllergenType {
+  MEDICATION
+  FOOD
+  ENVIRONMENTAL
+  BIOLOGICAL
+  CHEMICAL
+  OTHER
+}
+
+enum AllergySeverity {
+  MILD
+  MODERATE
+  SEVERE
+  LIFE_THREATENING
+}
+
+enum MedicationRoute {
+  ORAL
+  TOPICAL
+  INJECTION
+  INTRAVENOUS
+  INTRAMUSCULAR
+  SUBCUTANEOUS
+  INHALATION
+  RECTAL
+  VAGINAL
+  OPHTHALMIC
+  OTIC
+  NASAL
+  SUBLINGUAL
+  TRANSDERMAL
+}
+
+enum ConditionCategory {
+  PROBLEM_LIST_ITEM
+  ENCOUNTER_DIAGNOSIS
+  HEALTH_CONCERN
+}
+
+enum ConditionSeverity {
+  MILD
+  MODERATE
+  SEVERE
+  CRITICAL
+}
+
+enum ConditionStatus {
+  ACTIVE
+  RECURRENCE
+  RELAPSE
+  INACTIVE
+  REMISSION
+  RESOLVED
+}
+
+enum LabResultStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  ENTERED_IN_ERROR
+}
+
+enum ImagingStatus {
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  ENTERED_IN_ERROR
+}
+
+enum PrescriptionStatus {
+  PENDING
+  ACTIVE
+  DISPENSED
+  COMPLETED
+  CANCELLED
+  EXPIRED
+  STOPPED
+}
+
+enum OrderType {
+  LABORATORY
+  IMAGING
+  PROCEDURE
+  MEDICATION
+  REFERRAL
+  THERAPY
+  CONSULTATION
+}
+
+enum OrderStatus {
+  PENDING
+  ACCEPTED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  REJECTED
+  EXPIRED
+}
+
+enum DocumentType {
+  CLINICAL_NOTE
+  LAB_REPORT
+  IMAGING_REPORT
+  PRESCRIPTION
+  CONSENT_FORM
+  INSURANCE_CARD
+  ID_DOCUMENT
+  MEDICAL_HISTORY
+  DISCHARGE_SUMMARY
+  REFERRAL_LETTER
+  OTHER
+}
+
+enum ConsentType {
+  TREATMENT
+  DISCLOSURE
+  RESEARCH
+  MARKETING
+  PHOTOGRAPHY
+  TELEMEDICINE
+  BILLING
+  EMERGENCY_CONTACT
+}
+
+enum ConsentStatus {
+  PENDING
+  GRANTED
+  DENIED
+  REVOKED
+  EXPIRED
+}
+
+enum BillingStatus {
+  PENDING
+  SENT
+  PAID
+  PARTIAL_PAYMENT
+  OVERDUE
+  CANCELLED
+  REFUNDED
+}
+
+enum PaymentMethod {
+  CASH
+  CHECK
+  CREDIT_CARD
+  DEBIT_CARD
+  BANK_TRANSFER
+  INSURANCE
+  PAYMENT_PLAN
+  OTHER
+}
+
+enum PaymentStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  CANCELLED
+  REFUNDED
+}
+
+enum InsuranceType {
+  PRIMARY
+  SECONDARY
+  TERTIARY
+  SELF_PAY
+  WORKERS_COMP
+  AUTO_INSURANCE
+  OTHER
+}
+
+enum ClaimStatus {
+  SUBMITTED
+  PENDING
+  APPROVED
+  DENIED
+  PAID
+  REJECTED
+  RESUBMITTED
+}
+
+enum MessageType {
+  GENERAL
+  APPOINTMENT_REMINDER
+  TEST_RESULT
+  PRESCRIPTION_READY
+  BILLING_NOTICE
+  EMERGENCY_ALERT
+  SYSTEM_NOTIFICATION
+}
+
+enum MessageStatus {
+  DRAFT
+  SENT
+  DELIVERED
+  READ
+  FAILED
+  ARCHIVED
+}
+
+enum NotificationType {
+  APPOINTMENT_REMINDER
+  APPOINTMENT_CANCELLED
+  TEST_RESULT_AVAILABLE
+  PRESCRIPTION_READY
+  BILL_DUE
+  PAYMENT_RECEIVED
+  MESSAGE_RECEIVED
+  SYSTEM_ALERT
+  SECURITY_ALERT
+}
+
+enum AuditOutcome {
+  SUCCESS
+  FAILURE
+  WARNING
+}
+
+enum RiskLevel {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}

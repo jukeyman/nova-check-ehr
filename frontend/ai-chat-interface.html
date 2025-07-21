@@ -1,0 +1,703 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nova Check EHR - AI Medical Assistant</title>
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .chat-container {
+            height: calc(100vh - 200px);
+        }
+        .message-bubble {
+            animation: slideIn 0.3s ease-out;
+        }
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .pulse-animation {
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+        .voice-wave {
+            animation: wave 1.5s ease-in-out infinite;
+        }
+        @keyframes wave {
+            0%, 100% { height: 10px; }
+            50% { height: 30px; }
+        }
+        .typing-indicator {
+            animation: typing 1.4s infinite;
+        }
+        @keyframes typing {
+            0%, 60%, 100% { transform: translateY(0); }
+            30% { transform: translateY(-10px); }
+        }
+        .gradient-bg {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .glass-effect {
+            backdrop-filter: blur(10px);
+            background: rgba(255, 255, 255, 0.1);
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef, useCallback } = React;
+
+        // WebSocket connection manager
+        class WebSocketManager {
+            constructor(url) {
+                this.url = url;
+                this.ws = null;
+                this.reconnectAttempts = 0;
+                this.maxReconnectAttempts = 5;
+                this.reconnectDelay = 1000;
+                this.messageHandlers = new Map();
+            }
+
+            connect() {
+                try {
+                    this.ws = new WebSocket(this.url);
+                    
+                    this.ws.onopen = () => {
+                        console.log('WebSocket connected');
+                        this.reconnectAttempts = 0;
+                    };
+
+                    this.ws.onmessage = (event) => {
+                        const data = JSON.parse(event.data);
+                        const handler = this.messageHandlers.get(data.type);
+                        if (handler) {
+                            handler(data.payload);
+                        }
+                    };
+
+                    this.ws.onclose = () => {
+                        console.log('WebSocket disconnected');
+                        this.attemptReconnect();
+                    };
+
+                    this.ws.onerror = (error) => {
+                        console.error('WebSocket error:', error);
+                    };
+                } catch (error) {
+                    console.error('WebSocket connection failed:', error);
+                    this.attemptReconnect();
+                }
+            }
+
+            attemptReconnect() {
+                if (this.reconnectAttempts < this.maxReconnectAttempts) {
+                    this.reconnectAttempts++;
+                    setTimeout(() => {
+                        console.log(`Reconnection attempt ${this.reconnectAttempts}`);
+                        this.connect();
+                    }, this.reconnectDelay * this.reconnectAttempts);
+                }
+            }
+
+            send(type, payload) {
+                if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+                    this.ws.send(JSON.stringify({ type, payload }));
+                }
+            }
+
+            onMessage(type, handler) {
+                this.messageHandlers.set(type, handler);
+            }
+
+            disconnect() {
+                if (this.ws) {
+                    this.ws.close();
+                }
+            }
+        }
+
+        // Voice recognition manager
+        class VoiceManager {
+            constructor() {
+                this.recognition = null;
+                this.synthesis = window.speechSynthesis;
+                this.isListening = false;
+                this.isSupported = 'webkitSpeechRecognition' in window || 'SpeechRecognition' in window;
+            }
+
+            initialize() {
+                if (!this.isSupported) {
+                    console.warn('Speech recognition not supported');
+                    return false;
+                }
+
+                const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+                this.recognition = new SpeechRecognition();
+                
+                this.recognition.continuous = false;
+                this.recognition.interimResults = true;
+                this.recognition.lang = 'en-US';
+
+                return true;
+            }
+
+            startListening(onResult, onEnd) {
+                if (!this.recognition || this.isListening) return;
+
+                this.isListening = true;
+                
+                this.recognition.onresult = (event) => {
+                    const result = event.results[event.results.length - 1];
+                    if (result.isFinal) {
+                        onResult(result[0].transcript, result[0].confidence);
+                    }
+                };
+
+                this.recognition.onend = () => {
+                    this.isListening = false;
+                    onEnd();
+                };
+
+                this.recognition.onerror = (event) => {
+                    console.error('Speech recognition error:', event.error);
+                    this.isListening = false;
+                    onEnd();
+                };
+
+                this.recognition.start();
+            }
+
+            stopListening() {
+                if (this.recognition && this.isListening) {
+                    this.recognition.stop();
+                }
+            }
+
+            speak(text, options = {}) {
+                if (!this.synthesis) return;
+
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.rate = options.rate || 1;
+                utterance.pitch = options.pitch || 1;
+                utterance.volume = options.volume || 1;
+                utterance.voice = options.voice || this.synthesis.getVoices().find(voice => voice.lang === 'en-US');
+
+                this.synthesis.speak(utterance);
+            }
+
+            stopSpeaking() {
+                if (this.synthesis) {
+                    this.synthesis.cancel();
+                }
+            }
+        }
+
+        // Main AI Chat Interface Component
+        function AIChatInterface() {
+            const [messages, setMessages] = useState([]);
+            const [inputMessage, setInputMessage] = useState('');
+            const [isLoading, setIsLoading] = useState(false);
+            const [isListening, setIsListening] = useState(false);
+            const [isSpeaking, setIsSpeaking] = useState(false);
+            const [sessionId] = useState(() => 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9));
+            const [currentPatient, setCurrentPatient] = useState(null);
+            const [connectionStatus, setConnectionStatus] = useState('disconnected');
+            const [voiceEnabled, setVoiceEnabled] = useState(false);
+            const [knowledgeSearch, setKnowledgeSearch] = useState('');
+            const [searchResults, setSearchResults] = useState(null);
+            
+            const messagesEndRef = useRef(null);
+            const wsManager = useRef(null);
+            const voiceManager = useRef(null);
+            const inputRef = useRef(null);
+
+            useEffect(() => {
+                // Set API endpoints
+                const AI_API_URL = 'http://localhost:3003/api/ai';
+                
+                // Set connection status for HTTP-only mode
+                setConnectionStatus('connected');
+
+                // Initialize voice manager
+                voiceManager.current = new VoiceManager();
+                const voiceSupported = voiceManager.current.initialize();
+                setVoiceEnabled(voiceSupported);
+
+                // Add welcome message
+                addMessage('assistant', 'Hello! I\'m your AI medical assistant. I can help you with patient information, medication details, lab results, clinical guidelines, and much more. How can I assist you today?', {
+                    type: 'welcome',
+                    actions: ['Search Patients', 'Medication Info', 'Clinical Guidelines', 'Lab Results']
+                });
+
+                return () => {
+                    if (wsManager.current) {
+                        wsManager.current.disconnect();
+                    }
+                    if (voiceManager.current) {
+                        voiceManager.current.stopSpeaking();
+                    }
+                };
+            }, []);
+
+            useEffect(() => {
+                scrollToBottom();
+            }, [messages]);
+
+            const scrollToBottom = () => {
+                messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+            };
+
+            const addMessage = (sender, text, data = null) => {
+                const message = {
+                    id: Date.now() + Math.random(),
+                    sender,
+                    text,
+                    timestamp: new Date(),
+                    data
+                };
+                setMessages(prev => [...prev, message]);
+            };
+
+            const sendMessage = async (message = inputMessage) => {
+                if (!message.trim()) return;
+
+                addMessage('user', message);
+                setInputMessage('');
+                setIsLoading(true);
+
+                try {
+                    const response = await fetch('http://localhost:3003/api/ai/chat', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            message,
+                            sessionId,
+                            context: {
+                                currentPatient: currentPatient?.id,
+                                userRole: 'physician'
+                            }
+                        })
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+
+                    const data = await response.json();
+                    setIsLoading(false);
+                    
+                    // Handle AI chat agent response format
+                    addMessage('assistant', data.response, {
+                        intent: data.intent,
+                        confidence: data.confidence,
+                        entities: data.entities
+                    });
+                    
+                    // Update session ID if provided
+                    if (data.sessionId) {
+                        setSessionId(data.sessionId);
+                    }
+                    
+                    if (voiceEnabled && data.response) {
+                        voiceManager.current.speak(data.response);
+                    }
+                } catch (error) {
+                    setIsLoading(false);
+                    addMessage('system', `Connection error: ${error.message}`, { type: 'error' });
+                }
+            };
+
+            const startVoiceInput = () => {
+                if (!voiceManager.current || isListening) return;
+
+                setIsListening(true);
+                voiceManager.current.startListening(
+                    (transcript, confidence) => {
+                        console.log('Voice input:', transcript, 'Confidence:', confidence);
+                        if (confidence > 0.7) {
+                            sendMessage(transcript);
+                        } else {
+                            addMessage('system', `Voice input unclear (${Math.round(confidence * 100)}% confidence). Please try again.`, { type: 'warning' });
+                        }
+                    },
+                    () => {
+                        setIsListening(false);
+                    }
+                );
+            };
+
+            const stopVoiceInput = () => {
+                if (voiceManager.current) {
+                    voiceManager.current.stopListening();
+                }
+                setIsListening(false);
+            };
+
+            const handleKeyPress = (e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    sendMessage();
+                }
+            };
+
+            const executeAction = (action, messageData) => {
+                switch (action) {
+                    case 'Search Patients':
+                        sendMessage('Show me the patient list');
+                        break;
+                    case 'Medication Info':
+                        sendMessage('Tell me about metformin');
+                        break;
+                    case 'Clinical Guidelines':
+                        sendMessage('Show hypertension guidelines');
+                        break;
+                    case 'Lab Results':
+                        sendMessage('Show latest lab results');
+                        break;
+                    case 'View Full Record':
+                        if (messageData?.data?.id) {
+                            setCurrentPatient(messageData.data);
+                            sendMessage(`Show full medical record for patient ${messageData.data.id}`);
+                        }
+                        break;
+                    case 'Schedule Appointment':
+                        sendMessage('Schedule a new appointment');
+                        break;
+                    case 'Order New Tests':
+                        sendMessage('What lab tests should I order?');
+                        break;
+                    default:
+                        sendMessage(action);
+                }
+            };
+
+            const searchKnowledge = async () => {
+                if (!knowledgeSearch.trim()) return;
+
+                try {
+                    const response = await fetch(`http://localhost:3003/api/ai/knowledge?q=${encodeURIComponent(knowledgeSearch)}`);
+                    const data = await response.json();
+                    setSearchResults(data.results || []);
+                } catch (error) {
+                    console.error('Knowledge search error:', error);
+                    setSearchResults([]);
+                }
+            };
+
+            const formatMessageData = (data) => {
+                if (!data || !data.data) return null;
+
+                switch (data.type) {
+                    case 'patient_data':
+                        const patient = data.data;
+                        return (
+                            <div className="mt-3 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                                <h4 className="font-semibold text-blue-900 mb-2">Patient Information</h4>
+                                <div className="grid grid-cols-2 gap-2 text-sm">
+                                    <div><span className="font-medium">Name:</span> {patient.name}</div>
+                                    <div><span className="font-medium">MRN:</span> {patient.mrn}</div>
+                                    <div><span className="font-medium">Age:</span> {patient.age}</div>
+                                    <div><span className="font-medium">Gender:</span> {patient.gender}</div>
+                                </div>
+                                {patient.allergies && (
+                                    <div className="mt-2">
+                                        <span className="font-medium text-red-600">Allergies:</span> {patient.allergies.join(', ')}
+                                    </div>
+                                )}
+                                {patient.medications && (
+                                    <div className="mt-2">
+                                        <span className="font-medium">Current Medications:</span>
+                                        <ul className="list-disc list-inside ml-2">
+                                            {patient.medications.map((med, idx) => (
+                                                <li key={idx}>{med.name} - {med.dosage}</li>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                )}
+                            </div>
+                        );
+
+                    case 'lab_results':
+                        return (
+                            <div className="mt-3 p-4 bg-green-50 rounded-lg border border-green-200">
+                                <h4 className="font-semibold text-green-900 mb-2">Lab Results</h4>
+                                <div className="space-y-2">
+                                    {data.data.map((lab, idx) => (
+                                        <div key={idx} className="flex justify-between items-center">
+                                            <span className="font-medium">{lab.test}:</span>
+                                            <span className={`px-2 py-1 rounded text-sm ${
+                                                lab.value.includes('Normal') ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
+                                            }`}>
+                                                {lab.value}
+                                            </span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        );
+
+                    case 'medication_info':
+                        const drug = data.data;
+                        if (!drug) return null;
+                        return (
+                            <div className="mt-3 p-4 bg-purple-50 rounded-lg border border-purple-200">
+                                <h4 className="font-semibold text-purple-900 mb-2">{drug.name} ({drug.class})</h4>
+                                <div className="space-y-2 text-sm">
+                                    <div><span className="font-medium">Indications:</span> {drug.indications.join(', ')}</div>
+                                    <div><span className="font-medium">Dosage:</span> {drug.dosage}</div>
+                                    <div><span className="font-medium">Side Effects:</span> {drug.sideEffects.join(', ')}</div>
+                                    <div><span className="font-medium">Contraindications:</span> {drug.contraindications.join(', ')}</div>
+                                </div>
+                            </div>
+                        );
+
+                    default:
+                        return null;
+                }
+            };
+
+            return (
+                <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+                    {/* Header */}
+                    <div className="gradient-bg text-white p-6 shadow-lg">
+                        <div className="max-w-6xl mx-auto flex items-center justify-between">
+                            <div className="flex items-center space-x-4">
+                                <div className="w-12 h-12 bg-white bg-opacity-20 rounded-full flex items-center justify-center">
+                                    <i className="fas fa-robot text-2xl"></i>
+                                </div>
+                                <div>
+                                    <h1 className="text-2xl font-bold">AI Medical Assistant</h1>
+                                    <p className="text-blue-100">Advanced NLP-powered EHR companion</p>
+                                </div>
+                            </div>
+                            <div className="flex items-center space-x-4">
+                                <div className={`flex items-center space-x-2 px-3 py-1 rounded-full ${
+                                    connectionStatus === 'connected' ? 'bg-green-500' : 'bg-red-500'
+                                } bg-opacity-20`}>
+                                    <div className={`w-2 h-2 rounded-full ${
+                                        connectionStatus === 'connected' ? 'bg-green-300' : 'bg-red-300'
+                                    }`}></div>
+                                    <span className="text-sm">{connectionStatus}</span>
+                                </div>
+                                {currentPatient && (
+                                    <div className="bg-white bg-opacity-20 px-3 py-1 rounded-full">
+                                        <span className="text-sm">Patient: {currentPatient.name}</span>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="max-w-6xl mx-auto p-6">
+                        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                            {/* Knowledge Search Panel */}
+                            <div className="lg:col-span-1">
+                                <div className="bg-white rounded-xl shadow-lg p-6">
+                                    <h3 className="text-lg font-semibold mb-4 flex items-center">
+                                        <i className="fas fa-search mr-2 text-blue-600"></i>
+                                        Knowledge Search
+                                    </h3>
+                                    <div className="space-y-4">
+                                        <div className="flex space-x-2">
+                                            <input
+                                                type="text"
+                                                value={knowledgeSearch}
+                                                onChange={(e) => setKnowledgeSearch(e.target.value)}
+                                                placeholder="Search drugs, diseases..."
+                                                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                                onKeyPress={(e) => e.key === 'Enter' && searchKnowledge()}
+                                            />
+                                            <button
+                                                onClick={searchKnowledge}
+                                                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                                            >
+                                                <i className="fas fa-search"></i>
+                                            </button>
+                                        </div>
+                                        
+                                        {searchResults && (
+                                            <div className="space-y-2 max-h-64 overflow-y-auto">
+                                                {Object.entries(searchResults).map(([type, result]) => {
+                                                    if (!result) return null;
+                                                    return (
+                                                        <div key={type} className="p-3 bg-gray-50 rounded-lg">
+                                                            <div className="font-medium text-sm text-gray-600 uppercase">{type}</div>
+                                                            <div className="text-sm mt-1">
+                                                                {typeof result === 'object' ? result.name || 'Found' : 'No results'}
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
+                                    </div>
+                                    
+                                    <div className="mt-6">
+                                        <h4 className="font-medium mb-2">Quick Actions</h4>
+                                        <div className="space-y-2">
+                                            {['Search Patients', 'Medication Info', 'Lab Results', 'Clinical Guidelines'].map(action => (
+                                                <button
+                                                    key={action}
+                                                    onClick={() => executeAction(action)}
+                                                    className="w-full text-left px-3 py-2 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                                                >
+                                                    {action}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Chat Interface */}
+                            <div className="lg:col-span-3">
+                                <div className="bg-white rounded-xl shadow-lg overflow-hidden">
+                                    {/* Chat Messages */}
+                                    <div className="chat-container overflow-y-auto p-6 space-y-4">
+                                        {messages.map((message) => (
+                                            <div key={message.id} className={`message-bubble flex ${
+                                                message.sender === 'user' ? 'justify-end' : 'justify-start'
+                                            }`}>
+                                                <div className={`max-w-3xl ${
+                                                    message.sender === 'user' 
+                                                        ? 'bg-blue-600 text-white' 
+                                                        : message.sender === 'system'
+                                                        ? 'bg-yellow-100 text-yellow-800 border border-yellow-300'
+                                                        : 'bg-gray-100 text-gray-800'
+                                                } rounded-lg px-4 py-3`}>
+                                                    <div className="flex items-start space-x-3">
+                                                        {message.sender !== 'user' && (
+                                                            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                                                                message.sender === 'system' ? 'bg-yellow-200' : 'bg-blue-100'
+                                                            }`}>
+                                                                <i className={`fas ${
+                                                                    message.sender === 'system' ? 'fa-exclamation-triangle text-yellow-600' : 'fa-robot text-blue-600'
+                                                                } text-sm`}></i>
+                                                            </div>
+                                                        )}
+                                                        <div className="flex-1">
+                                                            <p className="whitespace-pre-wrap">{message.text}</p>
+                                                            {formatMessageData(message.data)}
+                                                            
+                                                            {message.data?.actions && (
+                                                                <div className="mt-3 flex flex-wrap gap-2">
+                                                                    {message.data.actions.map((action, idx) => (
+                                                                        <button
+                                                                            key={idx}
+                                                                            onClick={() => executeAction(action, message)}
+                                                                            className="px-3 py-1 text-xs bg-white bg-opacity-20 hover:bg-opacity-30 rounded-full transition-colors"
+                                                                        >
+                                                                            {action}
+                                                                        </button>
+                                                                    ))}
+                                                                </div>
+                                                            )}
+                                                            
+                                                            <div className="text-xs opacity-70 mt-2">
+                                                                {message.timestamp.toLocaleTimeString()}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                        
+                                        {isLoading && (
+                                            <div className="flex justify-start">
+                                                <div className="bg-gray-100 rounded-lg px-4 py-3">
+                                                    <div className="flex items-center space-x-2">
+                                                        <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                                                            <i className="fas fa-robot text-blue-600"></i>
+                                                        </div>
+                                                        <div className="flex space-x-1">
+                                                            <div className="w-2 h-2 bg-gray-400 rounded-full typing-indicator"></div>
+                                                            <div className="w-2 h-2 bg-gray-400 rounded-full typing-indicator" style={{animationDelay: '0.2s'}}></div>
+                                                            <div className="w-2 h-2 bg-gray-400 rounded-full typing-indicator" style={{animationDelay: '0.4s'}}></div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+                                        
+                                        <div ref={messagesEndRef} />
+                                    </div>
+
+                                    {/* Input Area */}
+                                    <div className="border-t border-gray-200 p-4">
+                                        <div className="flex items-end space-x-3">
+                                            <div className="flex-1">
+                                                <textarea
+                                                    ref={inputRef}
+                                                    value={inputMessage}
+                                                    onChange={(e) => setInputMessage(e.target.value)}
+                                                    onKeyPress={handleKeyPress}
+                                                    placeholder="Ask me anything about patients, medications, lab results, guidelines..."
+                                                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                                                    rows="2"
+                                                    disabled={isLoading}
+                                                />
+                                            </div>
+                                            
+                                            {voiceEnabled && (
+                                                <button
+                                                    onClick={isListening ? stopVoiceInput : startVoiceInput}
+                                                    className={`p-3 rounded-lg transition-all duration-200 ${
+                                                        isListening 
+                                                            ? 'bg-red-600 hover:bg-red-700 text-white pulse-animation' 
+                                                            : 'bg-gray-200 hover:bg-gray-300 text-gray-600'
+                                                    }`}
+                                                    disabled={isLoading}
+                                                >
+                                                    <i className={`fas ${
+                                                        isListening ? 'fa-stop' : 'fa-microphone'
+                                                    }`}></i>
+                                                </button>
+                                            )}
+                                            
+                                            <button
+                                                onClick={() => sendMessage()}
+                                                className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                                disabled={isLoading || !inputMessage.trim()}
+                                            >
+                                                <i className="fas fa-paper-plane"></i>
+                                            </button>
+                                        </div>
+                                        
+                                        <div className="mt-2 flex items-center justify-between text-xs text-gray-500">
+                                            <div className="flex items-center space-x-4">
+                                                <span>Session: {sessionId.slice(-8)}</span>
+                                                {voiceEnabled && (
+                                                    <span className="flex items-center space-x-1">
+                                                        <i className="fas fa-microphone"></i>
+                                                        <span>Voice enabled</span>
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <div className="flex items-center space-x-2">
+                                                <span>Press Enter to send, Shift+Enter for new line</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        ReactDOM.render(<AIChatInterface />, document.getElementById('root'));
+    </script>
+</body>
+</html>

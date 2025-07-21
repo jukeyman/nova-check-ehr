@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nova Check EHR - Provider Dashboard Demo</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .animate-pulse { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: .5; }
+        }
+        .animate-fade-in {
+            animation: fadeIn 0.5s ease-in-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        // Mock data
+        const mockProvider = {
+            id: '1',
+            firstName: 'Dr. Sarah',
+            lastName: 'Johnson',
+            email: 'sarah.johnson@novacheck.com',
+            specialty: 'Internal Medicine',
+            avatar: 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?ixlib=rb-4.0.3&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80'
+        };
+
+        const mockPatients = [
+            {
+                id: '1',
+                name: 'John Doe',
+                age: 45,
+                lastVisit: '2024-01-15',
+                nextAppointment: '2024-01-22 10:00 AM',
+                status: 'stable',
+                conditions: ['Hypertension', 'Diabetes Type 2']
+            },
+            {
+                id: '2',
+                name: 'Jane Smith',
+                age: 32,
+                lastVisit: '2024-01-18',
+                nextAppointment: '2024-01-25 2:30 PM',
+                status: 'follow-up',
+                conditions: ['Asthma']
+            },
+            {
+                id: '3',
+                name: 'Robert Wilson',
+                age: 67,
+                lastVisit: '2024-01-10',
+                nextAppointment: '2024-01-24 9:15 AM',
+                status: 'critical',
+                conditions: ['Heart Disease', 'COPD']
+            }
+        ];
+
+        const mockAppointments = [
+            {
+                id: '1',
+                time: '9:00 AM',
+                patient: 'John Doe',
+                type: 'Follow-up',
+                duration: '30 min',
+                status: 'confirmed'
+            },
+            {
+                id: '2',
+                time: '10:00 AM',
+                patient: 'Jane Smith',
+                type: 'Annual Checkup',
+                duration: '45 min',
+                status: 'confirmed'
+            },
+            {
+                id: '3',
+                time: '11:30 AM',
+                patient: 'Robert Wilson',
+                type: 'Consultation',
+                duration: '60 min',
+                status: 'pending'
+            }
+        ];
+
+        const mockStats = {
+            todayAppointments: 8,
+            totalPatients: 247,
+            pendingReviews: 12,
+            completedToday: 5
+        };
+
+        // Components
+        const Header = () => (
+            <header className="bg-white shadow-sm border-b border-gray-200">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                    <div className="flex justify-between items-center py-4">
+                        <div className="flex items-center space-x-4">
+                            <div className="h-8 w-8 bg-blue-600 rounded-lg flex items-center justify-center">
+                                <span className="text-white font-bold text-sm">NC</span>
+                            </div>
+                            <h1 className="text-xl font-semibold text-gray-900">Nova Check EHR</h1>
+                            <span className="text-sm text-gray-500">Provider Portal</span>
+                        </div>
+                        <div className="flex items-center space-x-4">
+                            <button className="p-2 text-gray-400 hover:text-gray-600 rounded-lg">
+                                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-5 5-5-5h5v-12" />
+                                </svg>
+                            </button>
+                            <div className="flex items-center space-x-3">
+                                <img className="h-8 w-8 rounded-full" src={mockProvider.avatar} alt={mockProvider.firstName} />
+                                <div>
+                                    <span className="text-sm font-medium text-gray-700">{mockProvider.firstName} {mockProvider.lastName}</span>
+                                    <p className="text-xs text-gray-500">{mockProvider.specialty}</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </header>
+        );
+
+        const StatCard = ({ title, value, icon, color = 'blue', subtitle }) => (
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 animate-fade-in">
+                <div className="flex items-center">
+                    <div className={`flex-shrink-0 p-3 rounded-lg bg-${color}-100`}>
+                        <div className={`h-6 w-6 text-${color}-600`} dangerouslySetInnerHTML={{ __html: icon }} />
+                    </div>
+                    <div className="ml-4">
+                        <p className="text-sm font-medium text-gray-600">{title}</p>
+                        <p className="text-2xl font-semibold text-gray-900">{value}</p>
+                        {subtitle && <p className="text-xs text-gray-500">{subtitle}</p>}
+                    </div>
+                </div>
+            </div>
+        );
+
+        const AppointmentCard = ({ appointment }) => (
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 hover:shadow-md transition-shadow">
+                <div className="flex justify-between items-start">
+                    <div>
+                        <h3 className="text-sm font-medium text-gray-900">{appointment.patient}</h3>
+                        <p className="text-sm text-gray-600">{appointment.type}</p>
+                        <p className="text-xs text-gray-500 mt-1">{appointment.time} • {appointment.duration}</p>
+                    </div>
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                        appointment.status === 'confirmed' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
+                    }`}>
+                        {appointment.status}
+                    </span>
+                </div>
+                <div className="mt-3 flex space-x-2">
+                    <button className="text-xs bg-blue-50 text-blue-700 px-2 py-1 rounded hover:bg-blue-100">
+                        View Chart
+                    </button>
+                    <button className="text-xs bg-gray-50 text-gray-700 px-2 py-1 rounded hover:bg-gray-100">
+                        Reschedule
+                    </button>
+                </div>
+            </div>
+        );
+
+        const PatientCard = ({ patient }) => (
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 hover:shadow-md transition-shadow">
+                <div className="flex justify-between items-start">
+                    <div>
+                        <h3 className="text-sm font-medium text-gray-900">{patient.name}</h3>
+                        <p className="text-sm text-gray-600">Age: {patient.age}</p>
+                        <p className="text-xs text-gray-500 mt-1">Last visit: {patient.lastVisit}</p>
+                        <div className="mt-2">
+                            {patient.conditions.map((condition, index) => (
+                                <span key={index} className="inline-block bg-gray-100 text-gray-700 text-xs px-2 py-1 rounded mr-1 mb-1">
+                                    {condition}
+                                </span>
+                            ))}
+                        </div>
+                    </div>
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                        patient.status === 'stable' ? 'bg-green-100 text-green-800' : 
+                        patient.status === 'follow-up' ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800'
+                    }`}>
+                        {patient.status}
+                    </span>
+                </div>
+                <div className="mt-3 flex space-x-2">
+                    <button className="text-xs bg-blue-50 text-blue-700 px-2 py-1 rounded hover:bg-blue-100">
+                        Open Chart
+                    </button>
+                    <button className="text-xs bg-green-50 text-green-700 px-2 py-1 rounded hover:bg-green-100">
+                        Message
+                    </button>
+                </div>
+            </div>
+        );
+
+        const ProviderDashboard = () => {
+            const [loading, setLoading] = useState(true);
+
+            useEffect(() => {
+                setTimeout(() => setLoading(false), 1000);
+            }, []);
+
+            if (loading) {
+                return (
+                    <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+                        <div className="animate-pulse flex space-x-4">
+                            <div className="rounded-full bg-blue-400 h-12 w-12"></div>
+                            <div className="flex-1 space-y-2 py-1">
+                                <div className="h-4 bg-blue-400 rounded w-3/4"></div>
+                                <div className="h-4 bg-blue-400 rounded w-1/2"></div>
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
+
+            return (
+                <div className="min-h-screen bg-gray-50">
+                    <Header />
+                    
+                    <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                        {/* Welcome Section */}
+                        <div className="mb-8 animate-fade-in">
+                            <h2 className="text-2xl font-bold text-gray-900">Good morning, {mockProvider.firstName}!</h2>
+                            <p className="text-gray-600 mt-1">You have {mockStats.todayAppointments} appointments today.</p>
+                        </div>
+
+                        {/* Stats */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                            <StatCard 
+                                title="Today's Appointments" 
+                                value={mockStats.todayAppointments} 
+                                color="blue"
+                                icon="<path stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z' />"
+                            />
+                            <StatCard 
+                                title="Total Patients" 
+                                value={mockStats.totalPatients} 
+                                color="green"
+                                icon="<path stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z' />"
+                            />
+                            <StatCard 
+                                title="Pending Reviews" 
+                                value={mockStats.pendingReviews} 
+                                color="yellow"
+                                icon="<path stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z' />"
+                            />
+                            <StatCard 
+                                title="Completed Today" 
+                                value={mockStats.completedToday} 
+                                color="purple"
+                                icon="<path stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z' />"
+                            />
+                        </div>
+
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                            {/* Today's Schedule */}
+                            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 animate-fade-in">
+                                <div className="flex justify-between items-center mb-4">
+                                    <h3 className="text-lg font-semibold text-gray-900">Today's Schedule</h3>
+                                    <button className="text-blue-600 hover:text-blue-700 text-sm font-medium">
+                                        View All
+                                    </button>
+                                </div>
+                                <div className="space-y-4">
+                                    {mockAppointments.map(appointment => (
+                                        <AppointmentCard key={appointment.id} appointment={appointment} />
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Recent Patients */}
+                            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 animate-fade-in">
+                                <div className="flex justify-between items-center mb-4">
+                                    <h3 className="text-lg font-semibold text-gray-900">Recent Patients</h3>
+                                    <button className="text-blue-600 hover:text-blue-700 text-sm font-medium">
+                                        View All
+                                    </button>
+                                </div>
+                                <div className="space-y-4">
+                                    {mockPatients.map(patient => (
+                                        <PatientCard key={patient.id} patient={patient} />
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Quick Actions */}
+                        <div className="mt-8 bg-white rounded-lg shadow-sm border border-gray-200 p-6 animate-fade-in">
+                            <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                <button className="flex flex-col items-center p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+                                    <div className="h-8 w-8 bg-blue-100 rounded-lg flex items-center justify-center mb-2">
+                                        <svg className="h-5 w-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                                        </svg>
+                                    </div>
+                                    <span className="text-sm font-medium text-gray-900">New Patient</span>
+                                </button>
+                                <button className="flex flex-col items-center p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+                                    <div className="h-8 w-8 bg-green-100 rounded-lg flex items-center justify-center mb-2">
+                                        <svg className="h-5 w-5 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                        </svg>
+                                    </div>
+                                    <span className="text-sm font-medium text-gray-900">Write Note</span>
+                                </button>
+                                <button className="flex flex-col items-center p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+                                    <div className="h-8 w-8 bg-purple-100 rounded-lg flex items-center justify-center mb-2">
+                                        <svg className="h-5 w-5 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                                        </svg>
+                                    </div>
+                                    <span className="text-sm font-medium text-gray-900">Lab Orders</span>
+                                </button>
+                                <button className="flex flex-col items-center p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+                                    <div className="h-8 w-8 bg-yellow-100 rounded-lg flex items-center justify-center mb-2">
+                                        <svg className="h-5 w-5 text-yellow-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                                        </svg>
+                                    </div>
+                                    <span className="text-sm font-medium text-gray-900">Messages</span>
+                                </button>
+                            </div>
+                        </div>
+                    </main>
+                </div>
+            );
+        };
+
+        // Render the app
+        ReactDOM.render(<ProviderDashboard />, document.getElementById('root'));
+    </script>
+</body>
+</html>
