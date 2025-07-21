@@ -191,7 +191,6 @@ export class AppointmentService {
       appointments: response.data,
       total: response.meta?.total || 0,
       page: response.meta?.page || 1,
-      limit: response.meta?.limit || 20,
       totalPages: response.meta?.totalPages || 1,
     };
   }
