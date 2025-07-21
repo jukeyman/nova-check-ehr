@@ -1,46 +1,15 @@
 import { apiService, ApiResponse, PaginationParams } from './api';
-import { Appointment, AppointmentCreateData, AppointmentUpdateData, AppointmentFilters } from '@/types/appointment';
-import { TimeSlot, ProviderAvailability } from '@/types/provider';
-
-export interface Appointment {
-  id: string;
-  patientId: string;
-  providerId: string;
-  patient: {
-    id: string;
-    firstName: string;
-    lastName: string;
-    email: string;
-    phone: string;
-    dateOfBirth: string;
-    profilePicture?: string;
-  };
-  provider: {
-    id: string;
-    firstName: string;
-    lastName: string;
-    specialization: string;
-    department: string;
-    profilePicture?: string;
-  };
-  appointmentDate: string;
-  startTime: string;
-  endTime: string;
-  duration: number;
-  type: 'IN_PERSON' | 'TELEMEDICINE' | 'PHONE';
-  status: 'SCHEDULED' | 'CONFIRMED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED' | 'NO_SHOW';
-  reason: string;
-  notes?: string;
-  location?: string;
-  meetingLink?: string;
-  reminderSent: boolean;
-  priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
-  followUpRequired: boolean;
-  followUpDate?: string;
-  attachments?: string[];
-  createdAt: string;
-  updatedAt: string;
-}
+import { 
+  Appointment, 
+  AppointmentCreateData, 
+  AppointmentUpdateData, 
+  AppointmentSearchParams as ImportedAppointmentSearchParams,
+  AppointmentStats,
+  AppointmentListResponse,
+  TimeSlot,
+  ProviderAvailability,
+  AvailableSlot
+} from '../types/appointment';
 
 export interface CreateAppointmentRequest {
   patientId: string;
@@ -78,14 +47,6 @@ export interface UpdateAppointmentRequest {
 // ============================================================================
 // TYPES
 // ============================================================================
-
-export interface AppointmentListResponse {
-  appointments: Appointment[];
-  total: number;
-  page: number;
-  limit: number;
-  totalPages: number;
-}
 
 export interface AppointmentStatsResponse {
   totalAppointments: number;
@@ -127,23 +88,7 @@ export interface AppointmentSearchParams extends PaginationParams {
   sortOrder?: 'asc' | 'desc';
 }
 
-export interface AppointmentStats {
-  total: number;
-  scheduled: number;
-  confirmed: number;
-  inProgress: number;
-  completed: number;
-  cancelled: number;
-  noShow: number;
-  todayTotal: number;
-  weekTotal: number;
-  monthTotal: number;
-  averageDuration: number;
-  mostCommonType: string;
-  mostCommonReason: string;
-  upcomingCount: number;
-  overdueCount: number;
-}
+
 
 export interface AppointmentReminder {
   id: string;
@@ -155,15 +100,7 @@ export interface AppointmentReminder {
   message: string;
 }
 
-export interface AvailableSlot {
-  startTime: string;
-  endTime: string;
-  providerId: string;
-  providerName: string;
-  location: string;
-  appointmentType: string;
-  duration: number;
-}
+
 
 export interface AvailabilitySearchParams {
   providerId?: string;
@@ -716,7 +653,7 @@ export class AppointmentService {
       format
     }, {
       responseType: 'blob'
-    });
+    } as any);
     return response.data;
   }
 
@@ -1129,7 +1066,7 @@ export class AppointmentService {
           specialization: 'Cardiology',
           department: 'Cardiology',
         },
-        appointmentDate: new Date().toISOString().split('T')[0],
+        appointmentDate: new Date().toISOString().split('T')[0] ?? new Date().toISOString().substring(0, 10),
         startTime: '10:00',
         endTime: '10:45',
         duration: 45,
